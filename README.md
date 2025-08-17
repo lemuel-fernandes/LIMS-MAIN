@@ -1,85 +1,101 @@
 # 🧪 LIMS - Laboratory Information Management System
 
-A web-based Laboratory Information Management System (LIMS) designed to streamline equipment issuance, lab activity tracking, and inventory management. Built with HTML, CSS, JavaScript (Frontend) and Node.js + Express + MongoDB (Backend).
+A full-stack **Next.js (TypeScript)** based Laboratory Information Management System (LIMS) for managing lab equipment issuance, department-level tracking, and instructor/incharge dashboards.
 
 ## 🔧 Features
 
-- 📊 Lab Instructor Dashboard  
-- 🧾 Issue Equipment Form (with floating modal UI)  
-- 📚 Equipment Inventory Table with pagination and status tags  
-- 🔍 Search and sort functionality  
-- 🧠 Backend APIs to manage equipment data (CRUD)  
-- 🔒 Future Scope: Authentication for lab instructors and admins  
+* 📊 **Role-Based Dashboards** (Instructor & Incharge)
+* 🧾 **Equipment Management** (Add, Edit, Issue, Track)
+* 🏫 **Department Management** with API integration
+* 🔍 Search & filter equipment and activities
+* 🔒 Authentication system (Login & Signup APIs)
+* 📈 Statistics module for lab usage trends
 
 ---
 
 ## 🚀 Tech Stack
 
-### Frontend:
-- HTML5 / CSS3 / Vanilla JavaScript  
-- Font Awesome Icons  
+### Frontend & Backend (Fullstack via Next.js):
 
-### Backend:
-- Node.js  
-- Express.js  
-- MongoDB (via Mongoose)  
+* ⚛️ Next.js (App Router, TypeScript)
+* 🎨 Tailwind CSS for styling
+* 📦 ShadCN UI + Radix components
+* 🔑 NextAuth.js (or custom API routes for auth)
+
+### Database:
+
+* MongoDB (via Mongoose/Prisma — confirm from your setup)
 
 ---
 
+## 🔌 API Routes
 
-## 🔌 API Endpoints
+| Method | Endpoint                      | Description                    |
+| ------ | ----------------------------- | ------------------------------ |
+| POST   | `/api/signup`                 | Register new user              |
+| POST   | `/api/login`                  | User login                     |
+| GET    | `/api/issuance`               | Fetch issued equipment records |
+| POST   | `/api/issuance`               | Issue equipment                |
+| GET    | `/api/incharge/equipment`     | Get all equipment for incharge |
+| POST   | `/api/incharge/equipment`     | Add equipment                  |
+| PUT    | `/api/incharge/equipment/:id` | Update equipment details       |
+| DELETE | `/api/incharge/equipment/:id` | Delete equipment               |
 
-| Method | Endpoint              | Description                 |
-|--------|-----------------------|-----------------------------|
-| POST   | `/api/equipment`      | Add new equipment           |
-| GET    | `/api/equipment`      | Fetch all equipment records |
-| PUT    | `/api/equipment/:id`  | Update equipment details    |
-| DELETE | `/api/equipment/:id`  | Delete equipment record     |
+*(More routes available under `/app/api/...`)*
 
 ---
 
 ## 📦 Installation
 
 ### 1. Clone the repo
+
 ```bash
-git clone https://github.com/your-username/lims.git
-cd lims
+git clone https://github.com/your-username/LIMS-MAIN.git
+cd LIMS-MAIN-master
 ```
 
-### 2. Install Backend Dependencies
+### 2. Install dependencies
+
 ```bash
-cd backend
+pnpm install
+# or
 npm install
 ```
 
-### 3. Set up `.env` in `/backend`
+### 3. Setup Environment Variables
+
+Create `.env.local` in project root:
+
 ```env
-PORT=5000
 MONGO_URI=mongodb://localhost:27017/lims
+NEXTAUTH_SECRET=your-secret-key
+PORT=3000
 ```
 
-### 4. Start the Server
+### 4. Run the development server
+
 ```bash
-node server.js
+pnpm dev
+# or
+npm run dev
 ```
 
-### 5. Open the frontend
-Open `frontend/index.html` in your browser (or serve it via Live Server).
+App will run at: [http://localhost:3000](http://localhost:3000)
 
 ---
 
 ## ✅ Future Enhancements
 
-- User login for lab instructors & admins  
-- Analytics dashboard for inventory trends  
-- Export data as CSV/PDF  
-- Multi-lab and department support  
+* Multi-role authentication (Admin, Incharge, Instructor, Students)
+* Export equipment logs as CSV/PDF
+* Analytics dashboard with charts (lab usage, department trends)
+* Cloud database support (MongoDB Atlas / Supabase)
 
 ---
 
 ## 🙌 Contributing
 
-Pull requests are welcome! For major changes, please open an issue first to discuss what you'd like to change.
+Pull requests are welcome! Please open an issue before contributing major changes.
 
 ---
 
@@ -91,17 +107,18 @@ This project is open source.
 
 ## 👨‍💻 Developed By
 
-**Lemuel Fernandes**  
+**Lemuel Fernandes**
 [LinkedIn](https://www.linkedin.com/in/lemuel-fernandes)
 
 **Aiswarya**
-[LinkedIn]
+\[LinkedIn]
 
 **Vyshak**
-[LinkedIn]
+\[LinkedIn]
 
 **Jon**
-[LinkedIn]
+\[LinkedIn]
 
 **Sarah**
-[LinkedIn]
+\[LinkedIn]
+
