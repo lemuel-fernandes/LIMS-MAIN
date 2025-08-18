@@ -50,7 +50,7 @@ A full-stack **Next.js (TypeScript)** based Laboratory Information Management Sy
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/your-username/LIMS-MAIN.git
+git clone https://github.com/lemuel-fernandes/LIMS-MAIN.git
 cd LIMS-MAIN-master
 ```
 
