@@ -13,9 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Users, Calendar, Package } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
-
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 
 export default function IssueEquipmentPage() {
   const [studentData, setStudentData] = useState<any[]>([]);
@@ -62,9 +60,9 @@ export default function IssueEquipmentPage() {
 
   const handleStudentSelect = (studentId: string, checked: boolean) => {
     if (checked) {
-      setSelectedStudents([...selectedStudents, studentId]);
+      setSelectedStudents((prev) => [...prev, studentId]);
     } else {
-      setSelectedStudents(selectedStudents.filter((id) => id !== studentId));
+      setSelectedStudents((prev) => prev.filter((id) => id !== studentId));
     }
   };
 
@@ -96,7 +94,6 @@ export default function IssueEquipmentPage() {
       selectedStudents,
       attendance: studentAttendance,
       issueDate: new Date().toISOString(),
-      issueId: `#${Math.floor(Math.random() * 10000)}`,
     };
     try {
       const res = await fetch("/api/issuance", {
@@ -106,6 +103,16 @@ export default function IssueEquipmentPage() {
       });
       if (!res.ok) throw new Error("Failed to issue equipment");
       setSubmitSuccess(true);
+      // Reset form and selections
+      setFormData({
+        class: "",
+        batch: "",
+        team: "",
+        experiment: "",
+        equipmentList: "",
+      });
+      setSelectedStudents([]);
+      setStudentAttendance({});
     } catch (err: any) {
       setSubmitError(err.message || "Error issuing equipment");
     } finally {
@@ -131,10 +138,6 @@ export default function IssueEquipmentPage() {
               Back to Dashboard
             </Button>
           </Link>
-
-          <div className="text-sm text-gray-600">
-            New Issue - #{Math.floor(Math.random() * 10000)}
-          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -266,94 +269,86 @@ export default function IssueEquipmentPage() {
                     <div className="flex items-center gap-2">
                       <Users className="w-4 h-4 text-gray-400" />
                       <span className="text-sm text-gray-600">
-                        Class: 18TECH G-1-3
+                        Class: {formData.class?.toUpperCase() || "-"}{" "}
+                        {formData.batch?.toUpperCase() || ""}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm text-gray-600">Today</span>
+                      <span className="text-sm text-gray-600">
+                        {new Date().toLocaleDateString()}
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left">
-                        <Checkbox
-                          checked={
-                            selectedStudents.length === studentData.length
-                          }
-                          onCheckedChange={handleSelectAll}
-                        />
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Student Name
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Register No
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Issue Date
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Class-Batch-Team
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Equipment No
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Attendance
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {studentData.map((student) => (
-                      <tr key={student.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4">
+              {studentsLoading ? (
+                <div className="p-6 text-gray-500">Loading students...</div>
+              ) : studentsError ? (
+                <div className="p-6 text-red-500">{studentsError}</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left">
                           <Checkbox
-                            checked={selectedStudents.includes(student.id)}
-                            onCheckedChange={(checked) =>
-                              handleStudentSelect(
-                                student.id,
-                                checked as boolean
-                              )
+                            checked={
+                              selectedStudents.length === studentData.length &&
+                              studentData.length > 0
                             }
+                            onCheckedChange={handleSelectAll}
                           />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {student.name}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {student.regNo}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {student.issueDate}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {student.classBatch}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {student.equipmentNo}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Checkbox
-                            checked={studentAttendance[student.id] || false}
-                            onCheckedChange={(checked) =>
-                              handleAttendanceChange(
-                                student.id,
-                                checked as boolean
-                              )
-                            }
-                          />
-                        </td>
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Student Name
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Register No
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Attendance
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {studentData.map((student) => (
+                        <tr key={student._id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4">
+                            <Checkbox
+                              checked={selectedStudents.includes(student._id)}
+                              onCheckedChange={(checked) =>
+                                handleStudentSelect(
+                                  student._id,
+                                  checked as boolean
+                                )
+                              }
+                            />
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {student.name}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {student.regNo}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <Checkbox
+                              checked={studentAttendance[student._id] || false}
+                              onCheckedChange={(checked) =>
+                                handleAttendanceChange(
+                                  student._id,
+                                  checked as boolean
+                                )
+                              }
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
 
               <div className="px-6 py-4 border-t bg-gray-50">
                 <div className="flex items-center justify-between">
