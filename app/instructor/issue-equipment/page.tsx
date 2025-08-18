@@ -157,9 +157,13 @@ export default function IssueEquipmentPage() {
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="18tech">18 TECH</SelectItem>
-                    <SelectItem value="19tech">19 TECH</SelectItem>
-                    <SelectItem value="20tech">20 TECH</SelectItem>
+                    <SelectItem value="18tech">1BTPHY H</SelectItem>
+                    <SelectItem value="19tech">1BTPHY I</SelectItem>
+                    <SelectItem value="20tech">1BTPHY J</SelectItem>
+                    <SelectItem value="20tech">1BTPHY K</SelectItem>
+                    <SelectItem value="20tech">1BTPHY L</SelectItem>
+                    <SelectItem value="20tech">1BTPHY M</SelectItem>
+                    <SelectItem value="20tech">1BTPHY N</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -176,9 +180,20 @@ export default function IssueEquipmentPage() {
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="g1">G-1</SelectItem>
-                    <SelectItem value="g2">G-2</SelectItem>
-                    <SelectItem value="g3">G-3</SelectItem>
+                    <SelectItem value="g1">H-1</SelectItem>
+                    <SelectItem value="g1">H-2</SelectItem>
+                    <SelectItem value="g1">I-1</SelectItem>
+                    <SelectItem value="g1">I-2</SelectItem>
+                    <SelectItem value="g1">J-1</SelectItem>
+                    <SelectItem value="g1">J-2</SelectItem>
+                    <SelectItem value="g1">K-1</SelectItem>
+                    <SelectItem value="g1">K-2</SelectItem>
+                    <SelectItem value="g1">L-1</SelectItem>
+                    <SelectItem value="g1">L-2</SelectItem>
+                    <SelectItem value="g1">M-1</SelectItem>
+                    <SelectItem value="g1">M-2</SelectItem>
+                    <SelectItem value="g1">N-1</SelectItem>
+                    <SelectItem value="g1">N-2</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -198,6 +213,9 @@ export default function IssueEquipmentPage() {
                     <SelectItem value="team1">Team 1</SelectItem>
                     <SelectItem value="team2">Team 2</SelectItem>
                     <SelectItem value="team3">Team 3</SelectItem>
+                    <SelectItem value="team3">Team 4</SelectItem>
+                    <SelectItem value="team3">Team 5</SelectItem>
+                    <SelectItem value="team3">Team 6</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
