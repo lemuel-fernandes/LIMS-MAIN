@@ -5,9 +5,11 @@ import { compare } from "bcryptjs";
 export async function POST(req: NextRequest) {
   try {
     const { email, password, role } = await req.json();
+    console.log("Login attempt:", email, role, password);
     const client = await clientPromise;
-    const db = client.db();
+    const db = client.db('lims');
     const user = await db.collection("users").findOne({ email, role });
+    console.log("User found:", user);
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 401 });
     }
@@ -22,6 +24,6 @@ export async function POST(req: NextRequest) {
     const { password: _, ...userData } = user;
     return NextResponse.json(userData);
   } catch (error) {
-    return NextResponse.json({ error: "Login failed" }, { status: 500 });
+    return NextResponse.json({ error: `Login failed ${error}` }, { status: 500 });
   }
 }

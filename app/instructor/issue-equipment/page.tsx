@@ -37,6 +37,9 @@ export default function IssueEquipmentPage() {
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
+  const [equipmentData, setEquipmentData] = useState<any[]>([]);
+  const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
+
   // Fetch students from DB
   useEffect(() => {
     const fetchStudents = async () => {
@@ -54,6 +57,21 @@ export default function IssueEquipmentPage() {
       }
     };
     fetchStudents();
+  }, []);
+
+  // Fetch equipment from DB
+  useEffect(() => {
+    const fetchEquipment = async () => {
+      try {
+        const res = await fetch("/api/equipments");
+        if (!res.ok) throw new Error("Failed to fetch equipment");
+        const data = await res.json();
+        setEquipmentData(data);
+      } catch (err) {
+        console.error("Error fetching equipment:", err);
+      }
+    };
+    fetchEquipment();
   }, []);
 
   const handleInputChange = (field: string, value: string) => {
@@ -252,16 +270,30 @@ export default function IssueEquipmentPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Equipment Issued
+                  Select Equipment*
                 </label>
-                <Textarea
+                <Select
                   value={formData.equipmentList}
-                  onChange={(e) =>
-                    handleInputChange("equipmentList", e.target.value)
-                  }
-                  placeholder="10 Wires, 2 Bulbs, etc."
-                  rows={3}
-                />
+                  onValueChange={(value) => handleInputChange("equipmentList", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Equipment" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {equipmentData.map((item) => (
+                      <SelectItem key={item._id} value={item._id}>
+                        {item.name} - {item.code} ({item.status})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedEquipment.length > 0 && (
+                  <div className="mt-2 text-sm text-gray-600">
+                    Selected: {selectedEquipment.map(id => 
+                      equipmentData.find(e => e._id === id)?.name
+                    ).join(', ')}
+                  </div>
+                )}
               </div>
             </div>
           </div>
