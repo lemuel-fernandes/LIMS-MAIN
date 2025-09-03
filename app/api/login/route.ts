@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
     const { email, password, role } = await req.json();
     console.log("Login attempt:", email, role, password);
     const client = await clientPromise;
-    const db = client.db('lims');
+    const db = client.db('test');
     const user = await db.collection("users").findOne({ email, role });
     console.log("User found:", user);
     if (!user) {
