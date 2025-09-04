@@ -5,8 +5,8 @@ import { NextResponse } from "next/server";
 export async function GET() {
   try {
     const client = (await clientPromise) as MongoClient;
-    const db = client.db();
-    const equipment = await db.collection("equipment").find({}).toArray();
+    const db = client.db("test");
+    const equipment = await db.collection("equipments").find({}).toArray();
     return NextResponse.json(equipment);
   } catch (e) {
     return NextResponse.json(

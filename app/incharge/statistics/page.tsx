@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
+import { Button } from "@/components/ui/button";
 import {
   BarChart,
   Bar,
@@ -12,8 +14,20 @@ import {
   PieChart,
   Pie,
   Cell,
+  Legend,
 } from "recharts";
 import { Download, TrendingUp, TrendingDown, Activity } from "lucide-react";
+
+type Equipment = {
+  _id: string;
+  name: string;
+  serialNo: string;
+  purchaseDate: string;
+  labLocation: string;
+  quantity: string;
+  condition: string;
+};
+
 // Utility to convert equipment data to CSV
 function equipmentToCSV(equipmentData: Equipment[]): string {
   if (!equipmentData.length) return "";
@@ -35,19 +49,6 @@ function downloadCSV(data: string, filename: string) {
   document.body.removeChild(a);
   window.URL.revokeObjectURL(url);
 }
-import { Button } from "@/components/ui/button";
-
-import { useEffect, useState } from "react";
-
-type Equipment = {
-  _id: string;
-  name: string;
-  serialNo: string;
-  purchaseDate: string;
-  labLocation: string;
-  quantity: string;
-  condition: string;
-};
 
 export default function StatisticsPage() {
   const [equipmentData, setEquipmentData] = useState<Equipment[]>([]);
@@ -56,36 +57,74 @@ export default function StatisticsPage() {
   useEffect(() => {
     const fetchEquipment = async () => {
       setLoading(true);
-      const res = await fetch("/incharge/equipment/api");
-      const data = await res.json();
-      setEquipmentData(data);
-      setLoading(false);
+      try {
+        const res = await fetch("/incharge/equipment/api");
+        const data = await res.json();
+        setEquipmentData(data);
+      } catch (error) {
+        console.error("Failed to fetch equipment:", error);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchEquipment();
   }, []);
 
-  // Stats
+  // --- DERIVED DATA FOR CHARTS ---
+
+  // Stats (case-insensitive)
   const total = equipmentData.length;
-  const damaged = equipmentData.filter((e) => e.condition === "damaged").length;
-  const working = equipmentData.filter((e) => e.condition === "working").length;
+  const damaged = equipmentData.filter(
+    (e) => e.condition?.toLowerCase() === "damaged"
+  ).length;
+  const working = equipmentData.filter(
+    (e) => e.condition?.toLowerCase() === "working"
+  ).length;
   const maintenance = equipmentData.filter(
-    (e) => e.condition === "maintenance"
+    (e) => e.condition?.toLowerCase() === "maintenance"
   ).length;
 
-  // Pie chart data by equipment name (top 4 types)
+  // Department (Lab) Distribution Data
+  const departmentCounts: Record<string, number> = {};
+  equipmentData.forEach((e) => {
+    const lab = e.labLocation || "Unknown";
+    departmentCounts[lab] = (departmentCounts[lab] || 0) + 1;
+  });
+  const departmentUsageData = Object.entries(departmentCounts).map(
+    ([name, count]) => ({ name, count })
+  );
+
+  // Acquisition Trend Data (by year)
+  const acquisitionCounts: Record<string, number> = {};
+  equipmentData.forEach((e) => {
+    try {
+      if (e.purchaseDate) {
+        const year = new Date(e.purchaseDate).getFullYear().toString();
+        acquisitionCounts[year] = (acquisitionCounts[year] || 0) + 1;
+      }
+    } catch (err) {
+      // Ignore invalid dates
+    }
+  });
+  const acquisitionTrendData = Object.entries(acquisitionCounts)
+    .map(([year, count]) => ({ year, count }))
+    .sort((a, b) => parseInt(a.year) - parseInt(b.year));
+
+  // Pie chart data by equipment name (top 5 types)
   const typeCounts: Record<string, number> = {};
   equipmentData.forEach((e) => {
-    typeCounts[e.name] = (typeCounts[e.name] || 0) + 1;
+    const name = e.name || "Unknown";
+    typeCounts[name] = (typeCounts[name] || 0) + 1;
   });
   const sortedTypes = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]);
-  const equipmentTypeData = sortedTypes.slice(0, 4).map(([name, value], i) => ({
+  const equipmentTypeData = sortedTypes.slice(0, 5).map(([name, value], i) => ({
     name,
     value,
-    color: ["#3B82F6", "#10B981", "#F59E0B", "#EF4444"][i] || "#8884d8",
+    color: ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"][i],
   }));
-  if (sortedTypes.length > 4) {
-    const others = sortedTypes.slice(4).reduce((sum, [, v]) => sum + v, 0);
-    equipmentTypeData.push({ name: "Others", value: others, color: "#8884d8" });
+  if (sortedTypes.length > 5) {
+    const others = sortedTypes.slice(5).reduce((sum, [, v]) => sum + v, 0);
+    equipmentTypeData.push({ name: "Others", value: others, color: "#6B7280" });
   }
 
   return (
@@ -114,7 +153,7 @@ export default function StatisticsPage() {
           <div className="bg-white rounded-lg p-6 shadow-sm border">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Active Usage</p>
+                <p className="text-sm text-gray-600">Working Items</p>
                 <p className="text-2xl font-bold text-gray-900">{working}</p>
                 <p className="text-sm text-green-600 flex items-center gap-1 mt-1">
                   <TrendingUp className="w-3 h-3" />
@@ -128,13 +167,13 @@ export default function StatisticsPage() {
           <div className="bg-white rounded-lg p-6 shadow-sm border">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Maintenance Due</p>
+                <p className="text-sm text-gray-600">Maintenance</p>
                 <p className="text-2xl font-bold text-gray-900">
                   {maintenance}
                 </p>
-                <p className="text-sm text-red-600 flex items-center gap-1 mt-1">
+                <p className="text-sm text-orange-600 flex items-center gap-1 mt-1">
                   <TrendingUp className="w-3 h-3" />
-                  {maintenance > 0 ? `+${maintenance}` : 0} due
+                  {maintenance > 0 ? `+${maintenance}` : 0} items
                 </p>
               </div>
               <Activity className="w-8 h-8 text-orange-500" />
@@ -146,9 +185,9 @@ export default function StatisticsPage() {
               <div>
                 <p className="text-sm text-gray-600">Damaged Items</p>
                 <p className="text-2xl font-bold text-gray-900">{damaged}</p>
-                <p className="text-sm text-green-600 flex items-center gap-1 mt-1">
+                <p className="text-sm text-red-600 flex items-center gap-1 mt-1">
                   <TrendingDown className="w-3 h-3" />
-                  {damaged > 0 ? `-${damaged}` : 0} damaged
+                  {damaged > 0 ? `+${damaged}` : 0} items
                 </p>
               </div>
               <Activity className="w-8 h-8 text-red-500" />
@@ -158,44 +197,28 @@ export default function StatisticsPage() {
 
         {/* Charts Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Usage Trends */}
+          {/* Acquisition Trends */}
           <div className="bg-white rounded-lg p-6 shadow-sm border">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Equipment Usage Trends
-              </h3>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  downloadCSV(
-                    equipmentToCSV(equipmentData),
-                    "equipment_distribution.csv"
-                  )
-                }
-                disabled={loading || !equipmentData.length}
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
-            </div>
-            {/* Placeholder for usage trends, as no time-series data in DB */}
-            <div className="text-center text-gray-500 py-16">
-              No usage trend data available.
-            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Equipment Acquisition Trends
+            </h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={acquisitionTrendData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="year" />
+                <YAxis allowDecimals={false} />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="count" fill="#3B82F6" name="New Equipment" />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
 
-          {/* Equipment Distribution */}
+          {/* Equipment Distribution by Type */}
           <div className="bg-white rounded-lg p-6 shadow-sm border">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Equipment Distribution
-              </h3>
-              <Button variant="outline" size="sm">
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
-            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Equipment Distribution by Type
+            </h3>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
@@ -204,15 +227,14 @@ export default function StatisticsPage() {
                   cy="50%"
                   outerRadius={100}
                   dataKey="value"
-                  label={({ name, percent }) =>
-                    `${name} ${((percent ?? 0) * 100).toFixed(0)}%`
-                  }
+                  nameKey="name"
                 >
                   {equipmentTypeData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip />
+                <Legend />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -220,18 +242,19 @@ export default function StatisticsPage() {
 
         {/* Department Usage */}
         <div className="bg-white rounded-lg p-6 shadow-sm border">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">
-              Department-wise Usage
-            </h3>
-            <Button variant="outline" size="sm">
-              <Download className="w-4 h-4 mr-2" />
-              Export Report
-            </Button>
-          </div>
-          <div className="text-center text-gray-500 py-16">
-            No department usage data available.
-          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            Department-wise Equipment Count
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={departmentUsageData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" />
+              <YAxis allowDecimals={false} />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="count" fill="#10B981" name="Total Equipment" />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
 
         {/* Download Reports */}
@@ -285,3 +308,4 @@ export default function StatisticsPage() {
     </DashboardLayout>
   );
 }
+

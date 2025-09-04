@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import Link from "next/link";
-import { Download, Plus } from "lucide-react";
+import { Download, Plus, ArrowRight, Search } from "lucide-react";
 
 type Equipment = {
   _id: string;
@@ -31,10 +32,15 @@ export default function InchargeDashboard() {
     fetchEquipment();
   }, []);
 
-  // Stats
+  // Stats calculation
   const total = equipmentData.length;
-  const damaged = equipmentData.filter((e) => e.condition === "damaged").length;
-  const working = equipmentData.filter((e) => e.condition === "working").length;
+  // FIX: Make the filter case-insensitive to correctly count items
+  const damaged = equipmentData.filter(
+    (e) => e.condition?.toLowerCase() === "damaged"
+  ).length;
+  const working = equipmentData.filter(
+    (e) => e.condition?.toLowerCase() === "working"
+  ).length;
 
   return (
     <DashboardLayout
@@ -97,9 +103,11 @@ export default function InchargeDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">
-                  Equipment Stock
+                  Equipment Stock Preview
                 </h3>
-                <p className="text-sm text-green-600 mt-1">Active Usage</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  Showing up to 10 most recent items.
+                </p>
               </div>
             </div>
           </div>
@@ -142,7 +150,7 @@ export default function InchargeDashboard() {
                     </td>
                   </tr>
                 ) : (
-                  equipmentData.map((item) => (
+                  equipmentData.slice(0, 10).map((item) => (
                     <tr key={item._id}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {item.name}
@@ -162,9 +170,9 @@ export default function InchargeDashboard() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span
                           className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            item.condition === "working"
+                            item.condition?.toLowerCase() === "working"
                               ? "bg-green-100 text-green-800"
-                              : item.condition === "damaged"
+                              : item.condition?.toLowerCase() === "damaged"
                               ? "bg-red-100 text-red-800"
                               : "bg-yellow-100 text-yellow-800"
                           }`}
@@ -181,6 +189,15 @@ export default function InchargeDashboard() {
         </div>
 
         <div className="flex justify-end gap-4">
+          <Link href="/incharge/equipment/viewAll">
+            <Button
+              variant="outline"
+              className="flex items-center gap-2 bg-transparent"
+            >
+              <ArrowRight className="w-4 h-4" />
+              View All Equipment
+            </Button>
+          </Link>
           <Link href="/incharge/statistics">
             <Button
               variant="outline"
@@ -201,3 +218,4 @@ export default function InchargeDashboard() {
     </DashboardLayout>
   );
 }
+

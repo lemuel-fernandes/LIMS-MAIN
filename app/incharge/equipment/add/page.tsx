@@ -56,6 +56,7 @@ export default function AddEquipmentPage() {
       });
       if (res.ok) {
         alert("Equipment added successfully!");
+        router.refresh(); // UPDATE: This line ensures the dashboard data is refreshed.
         router.push("/incharge/dashboard");
       } else {
         alert("Failed to add equipment. Please try again.");
@@ -108,6 +109,7 @@ export default function AddEquipmentPage() {
       }
 
       setUploadMessage((result as UploadSuccessResponse).message);
+      router.refresh(); // UPDATE: This line ensures the dashboard data is refreshed after bulk upload.
       setIsError(false);
       setSelectedFile(null); // Clear the file input
     } catch (error: any) {
