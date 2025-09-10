@@ -30,20 +30,37 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, role: selectedRole }),
       });
+      
       if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || "Login failed");
+        let errorMessage = "Login failed. Please check your credentials.";
+        try {
+            const data = await res.json();
+            errorMessage = data.error || errorMessage;
+        } catch (e) {
+            errorMessage = `Login failed: Server responded with status ${res.status}.`;
+        }
+        setError(errorMessage);
         return;
       }
-      const user = await res.json();
-      localStorage.setItem("user", JSON.stringify(user));
-      if (user.role === "incharge") {
-        router.push("/incharge/dashboard");
-      } else {
-        router.push("/instructor/dashboard");
+
+      // FIX: Wrap the successful response parsing in a try...catch
+      // This handles cases where the server returns 200 OK but an invalid JSON body.
+      try {
+        const user = await res.json();
+        localStorage.setItem("user", JSON.stringify(user));
+        localStorage.setItem("userEmail", user.email); 
+
+        if (user.role === "incharge") {
+          router.push("/incharge/dashboard");
+        } else {
+          router.push("/instructor/dashboard");
+        }
+      } catch (e) {
+        setError("Received an invalid response from the server. Please try again.");
       }
+
     } catch (err: any) {
-      setError(err.message || "Login failed");
+      setError("An unexpected network error occurred. Please try again.");
     }
   };
 
@@ -69,11 +86,19 @@ export default function LoginPage() {
           designation,
         }),
       });
-      const data = await res.json();
+
       if (!res.ok) {
-        setError(data.error || "Signup failed");
+        let errorMessage = "Signup failed. Please try again.";
+        try {
+            const data = await res.json();
+            errorMessage = data.error || errorMessage;
+        } catch (e) {
+            errorMessage = `Signup failed: Server responded with status ${res.status}.`;
+        }
+        setError(errorMessage);
         return;
       }
+      
       setSuccess("Signup successful! You can now log in.");
       setSignupMode(false);
       setEmail("");
@@ -81,7 +106,7 @@ export default function LoginPage() {
       setDesignation("");
       setSelectedRole("");
     } catch (err: any) {
-      setError(err.message || "Signup failed");
+      setError("An unexpected network error occurred. Please try again.");
     }
   };
 
@@ -92,56 +117,23 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar */}
-      {/* <div className="w-64 bg-white shadow-sm">
-        <div className="p-6">
-          <div className="flex items-center gap-2 mb-8">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Flask className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold text-gray-900">LIMS</span>
-          </div>
-
-          <nav className="space-y-2">
-            <div className="bg-gray-900 text-white px-4 py-2 rounded-lg flex items-center gap-2">
-              <div className="w-4 h-4 bg-white rounded-sm"></div>
-              <span className="text-sm">Dashboard</span>
-            </div>
-            <div className="px-4 py-2 text-gray-600 flex items-center gap-2">
-              <div className="w-4 h-4"></div>
-              <span className="text-sm">Departments</span>
-            </div>
-            <div className="px-4 py-2 text-gray-600 flex items-center gap-2">
-              <div className="w-4 h-4"></div>
-              <span className="text-sm">Settings</span>
-            </div>
-            <div className="px-4 py-2 text-gray-600 flex items-center gap-2">
-              <div className="w-4 h-4"></div>
-              <span className="text-sm">Statistics</span>
-            </div>
-            <div className="px-4 py-2 text-gray-600 flex items-center gap-2">
-              <div className="w-4 h-4"></div>
-              <span className="text-sm">Profile</span>
-            </div>
-            <div className="px-4 py-2 text-gray-600 flex items-center gap-2">
-              <div className="w-4 h-4"></div>
-              <span className="text-sm">Report</span>
-            </div>
-          </nav>
-        </div>
-      </div> */}
-
       {/* Main Content */}
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="text-center pb-4">
+             <div className="flex items-center justify-center gap-2 mb-4">
+                <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <Flask className="w-6 h-6 text-white" />
+                </div>
+                <span className="text-2xl font-bold text-gray-900">LIMS</span>
+             </div>
             <h1 className="text-2xl font-bold text-gray-900">
-              {signupMode ? "Sign Up" : "Login"}
+              {signupMode ? "Create an Account" : "Welcome Back"}
             </h1>
-            <p className="text-gray-600">
+            <p className="text-gray-600 text-sm">
               {signupMode
-                ? "Create a new account to access LIMS."
-                : "Welcome back! Please Login to your account"}
+                ? "Create a new account to access the Lab Inventory Management System."
+                : "Please login to your account to continue."}
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -151,7 +143,7 @@ export default function LoginPage() {
               </label>
               <Input
                 type="email"
-                placeholder="Email"
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="bg-gray-100"
@@ -176,11 +168,11 @@ export default function LoginPage() {
             {signupMode && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Designation (optional)
+                  Designation
                 </label>
                 <Input
                   type="text"
-                  placeholder="Lab InCharge or Lab Instructor"
+                  placeholder="e.g., Lab InCharge or Lab Instructor"
                   value={designation}
                   onChange={(e) => setDesignation(e.target.value)}
                   className="bg-gray-100"
@@ -188,8 +180,8 @@ export default function LoginPage() {
               </div>
             )}
 
-            {error && <div className="text-red-600 text-sm">{error}</div>}
-            {success && <div className="text-green-600 text-sm">{success}</div>}
+            {error && <div className="text-red-600 text-sm font-medium p-3 bg-red-50 rounded-md">{error}</div>}
+            {success && <div className="text-green-600 text-sm font-medium p-3 bg-green-50 rounded-md">{success}</div>}
 
             <div className="flex gap-2">
               <Button
@@ -244,3 +236,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

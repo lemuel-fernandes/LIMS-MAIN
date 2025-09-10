@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   ShieldCheck,
   Bell,
@@ -21,6 +20,15 @@ type UserProfile = {
   department: string;
   joinDate: string;
   avatarUrl: string;
+};
+
+// A helper function to safely format dates
+const formatDate = (dateString: string) => {
+    try {
+        return new Date(dateString).toLocaleDateString();
+    } catch (error) {
+        return "Invalid Date";
+    }
 };
 
 // A simple loading skeleton component
@@ -42,7 +50,7 @@ const ProfileSkeleton = () => (
   </div>
 );
 
-export default function ProfilePage() {
+const ProfilePage = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,19 +59,17 @@ export default function ProfilePage() {
     const fetchUserProfile = async () => {
       setLoading(true);
       setError(null);
-      // 1. Get the user's email from localStorage
       const userEmail = localStorage.getItem("userEmail");
 
       if (!userEmail) {
-        setError("No user email found. Please log in.");
+        setError("No user email found in session. Please log in again.");
         setLoading(false);
         return;
       }
 
       try {
-        // 2. Fetch from the correct, new API endpoint
         const response = await fetch(
-          `/Incharge/profile/api?email=${encodeURIComponent(userEmail)}`
+          `/incharge/profile/api?email=${encodeURIComponent(userEmail)}`
         );
         if (!response.ok) {
           const errorData = await response.json();
@@ -149,7 +155,7 @@ export default function ProfilePage() {
                   <div>
                     <p className="text-gray-500">Join Date</p>
                     <p className="font-medium text-gray-800">
-                      {new Date(userProfile.joinDate).toLocaleDateString()}
+                      {formatDate(userProfile.joinDate)}
                     </p>
                   </div>
                 </div>
@@ -190,8 +196,7 @@ export default function ProfilePage() {
                 className="w-full sm:w-auto"
                 onClick={() => {
                   localStorage.removeItem("userEmail");
-                  // Redirect to login page - adjust path if needed
-                  window.location.href = "/login";
+                  window.location.href = "/login"; // Adjust path if needed
                 }}
               >
                 <LogOut className="w-4 h-4 mr-2" />
@@ -205,3 +210,4 @@ export default function ProfilePage() {
   );
 }
 
+export default ProfilePage;

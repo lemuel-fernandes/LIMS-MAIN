@@ -28,7 +28,7 @@ interface UploadErrorResponse {
 export default function AddEquipmentPage() {
   const router = useRouter();
 
-  // --- STATE FOR MANUAL FORM ---
+  // --- STATE FOR MANUAL FORM (UPDATED) ---
   const [formData, setFormData] = useState({
     name: "",
     serialNo: "",
@@ -36,6 +36,7 @@ export default function AddEquipmentPage() {
     labLocation: "",
     quantity: "",
     condition: "",
+    status: "Available", // ADDED: Status now defaults to "Available"
   });
 
   // --- STATE FOR FILE UPLOAD ---
@@ -52,11 +53,11 @@ export default function AddEquipmentPage() {
       const res = await fetch("/incharge/equipment/api", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(formData), // The formData now includes the status
       });
       if (res.ok) {
         alert("Equipment added successfully!");
-        router.refresh(); // UPDATE: This line ensures the dashboard data is refreshed.
+        router.refresh(); 
         router.push("/incharge/dashboard");
       } else {
         alert("Failed to add equipment. Please try again.");
@@ -95,7 +96,7 @@ export default function AddEquipmentPage() {
     fileFormData.append("file", selectedFile);
 
     try {
-      // IMPORTANT: You need to create this new API endpoint to handle file uploads
+      // The backend API at this endpoint will automatically set status to "Available" for each row
       const response = await fetch("/api/equipments/upload", {
         method: "POST",
         body: fileFormData,
@@ -109,7 +110,7 @@ export default function AddEquipmentPage() {
       }
 
       setUploadMessage((result as UploadSuccessResponse).message);
-      router.refresh(); // UPDATE: This line ensures the dashboard data is refreshed after bulk upload.
+      router.refresh(); 
       setIsError(false);
       setSelectedFile(null); // Clear the file input
     } catch (error: any) {
@@ -248,7 +249,7 @@ export default function AddEquipmentPage() {
             Upload from Excel File
           </h3>
           <p className="text-sm text-gray-600 mb-6">
-            Select an .xlsx or .xls file to bulk-add equipment.
+            Select an .xlsx or .xls file. Status for all items will be set to "Available".
           </p>
           <form onSubmit={handleUploadSubmit} className="space-y-6">
             <div>
@@ -317,3 +318,4 @@ export default function AddEquipmentPage() {
     </DashboardLayout>
   );
 }
+

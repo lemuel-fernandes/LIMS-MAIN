@@ -4,46 +4,39 @@ import { MongoClient } from "mongodb";
 
 export async function GET(request: NextRequest) {
   try {
-    // 1. Get the email from the URL query parameters sent by the profile page
     const searchParams = request.nextUrl.searchParams;
     const email = searchParams.get("email");
 
-    // 2. Handle cases where the email is not provided
     if (!email) {
       return NextResponse.json(
         { message: "Email query parameter is required" },
-        { status: 400 } // Bad Request
+        { status: 400 }
       );
     }
 
     const client: MongoClient = await clientPromise;
-    const db = client.db("test"); // Target the 'test' database
-    const usersCollection = db.collection("users"); // Target the 'users' collection
+    const db = client.db("test"); 
+    const usersCollection = db.collection("users");
 
-    // 3. Use the provided email to find the user in the database
     const user = await usersCollection.findOne({ email });
 
     if (!user) {
       return NextResponse.json(
-        { message: "User not found" },
+        { message: `User with email "${email}" not found.` },
         { status: 404 }
       );
     }
 
-    // Map the MongoDB document to the UserProfile type expected by the frontend
+    // Prepare the user profile data to send back to the frontend
     const userProfile = {
-      name: user.name,
+      name: user.name || "N/A",
       email: user.email,
-      role: user.role,
-      department: user.department,
-      joinDate: user.joinDate,
-      // Create a placeholder avatar from the user's initials
+      role: user.role || "N/A",
+      department: user.department || "N/A",
+      joinDate: user.joinDate || new Date().toISOString(),
       avatarUrl: `https://placehold.co/128x128/E0E7FF/4F46E5?text=${
         user.name
-          ? user.name
-              .split(" ")
-              .map((n: string) => n[0])
-              .join("")
+          ? user.name.split(" ").map((n: string) => n[0]).join("")
           : "U"
       }`,
     };

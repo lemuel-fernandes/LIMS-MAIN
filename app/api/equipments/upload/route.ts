@@ -12,6 +12,7 @@ interface EquipmentDocument extends Document {
   quantity: number;
   condition: string;
   remarks: string;
+  status: string; // ADDED: Status is now a required field
 }
 
 export async function POST(req: NextRequest) {
@@ -27,13 +28,11 @@ export async function POST(req: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    // FIX 1: Moved cellDates:true to the xlsx.read() function
     const workbook = xlsx.read(buffer, { type: "buffer", cellDates: true });
 
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     
-    // The sheet_to_json call is now simpler
     const data: any[] = xlsx.utils.sheet_to_json(worksheet);
 
     if (data.length === 0) {
@@ -44,7 +43,7 @@ export async function POST(req: NextRequest) {
     }
 
     const equipmentToInsert = data
-      .map((row, index): EquipmentDocument | null => { // Added return type
+      .map((row, index): EquipmentDocument | null => {
         try {
           if (!row["Date of Purchase"] || !row["Equipment Details"]) {
             console.warn(`Skipping row ${index + 2} due to missing data.`);
@@ -59,13 +58,13 @@ export async function POST(req: NextRequest) {
             quantity: Number(row["No."]) || 0,
             condition: row["Condition"],
             remarks: row["Remarks"],
+            status: "Available", // ADDED: Status is automatically set for every item
           };
         } catch (error) {
           console.error(`Error processing row ${index + 2}:`, error);
           return null;
         }
       })
-      // FIX 2: Using a more explicit filter that TypeScript understands
       .filter((item): item is EquipmentDocument => item !== null);
 
     if (equipmentToInsert.length === 0) {
