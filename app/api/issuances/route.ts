@@ -2,7 +2,61 @@ import { NextResponse, type NextRequest } from "next/server";
 import clientPromise from "@/lib/mongodb";
 import { MongoClient, ObjectId } from "mongodb";
 
-// This function handles POST requests to /api/issuances
+// --- Function to GET all issuance records ---
+export async function GET() {
+  try {
+    const client: MongoClient = await clientPromise;
+    const db = client.db("test"); // Ensure this is your correct database name
+    const issuancesCollection = db.collection("issuances");
+
+    // Use an aggregation pipeline to join data from other collections
+    const issuances = await issuancesCollection.aggregate([
+      // Step 1: Look up the student's details from the 'students' collection
+      {
+        $lookup: {
+          from: "students",
+          localField: "studentRegNo",
+          foreignField: "regNo",
+          as: "studentDetails"
+        }
+      },
+      // Step 2: Look up the details of all issued equipment from the 'equipments' collection
+      {
+        $lookup: {
+          from: "equipments",
+          localField: "equipmentIds",
+          foreignField: "_id",
+          as: "equipmentDetails"
+        }
+      },
+      // Step 3: Deconstruct the studentDetails array into a single object
+      {
+        $unwind: {
+          path: "$studentDetails",
+          preserveNullAndEmptyArrays: true // Keep record if student not found
+        }
+      },
+      // Step 4: Sort results to show the most recent issuances first
+      {
+        $sort: {
+          issuanceDate: -1
+        }
+      }
+    ]).toArray();
+
+    return NextResponse.json(issuances);
+
+  } catch (error: any) {
+    console.error("API Error fetching issuances:", error);
+    return NextResponse.json(
+      { message: "Failed to fetch issuance records.", error: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+
+// --- Function to POST a new issuance record ---
 export async function POST(request: NextRequest) {
   const client: MongoClient = await clientPromise;
   const session = client.startSession();
@@ -20,7 +74,6 @@ export async function POST(request: NextRequest) {
 
     const db = client.db("test");
     const experimentsCollection = db.collection("experiments");
-    // CORRECTED: Using the correct plural collection name 'equipments'
     const equipmentCollection = db.collection("equipments");
     const issuancesCollection = db.collection("issuances");
 
