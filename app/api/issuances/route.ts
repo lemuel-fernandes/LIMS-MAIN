@@ -6,52 +6,22 @@ import { MongoClient, ObjectId } from "mongodb";
 export async function GET() {
   try {
     const client: MongoClient = await clientPromise;
-    const db = client.db("test"); // Ensure this is your correct database name
+    const db = client.db("test");
     const issuancesCollection = db.collection("issuances");
 
-    // Use an aggregation pipeline to join data from other collections
     const issuances = await issuancesCollection.aggregate([
-      // Step 1: Look up the student's details from the 'students' collection
-      {
-        $lookup: {
-          from: "students",
-          localField: "studentRegNo",
-          foreignField: "regNo",
-          as: "studentDetails"
-        }
-      },
-      // Step 2: Look up the details of all issued equipment from the 'equipments' collection
-      {
-        $lookup: {
-          from: "equipments",
-          localField: "equipmentIds",
-          foreignField: "_id",
-          as: "equipmentDetails"
-        }
-      },
-      // Step 3: Deconstruct the studentDetails array into a single object
-      {
-        $unwind: {
-          path: "$studentDetails",
-          preserveNullAndEmptyArrays: true // Keep record if student not found
-        }
-      },
-      // Step 4: Sort results to show the most recent issuances first
-      {
-        $sort: {
-          issuanceDate: -1
-        }
-      }
+      { $lookup: { from: "students", localField: "studentRegNo", foreignField: "regNo", as: "studentDetails" } },
+      { $lookup: { from: "equipments", localField: "equipmentIds", foreignField: "_id", as: "equipmentDetails" } },
+      { $lookup: { from: "experiments", localField: "experimentId", foreignField: "_id", as: "experimentDetails" } },
+      { $unwind: { path: "$studentDetails", preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: "$experimentDetails", preserveNullAndEmptyArrays: true } },
+      { $sort: { issuanceDate: -1 } }
     ]).toArray();
 
     return NextResponse.json(issuances);
-
   } catch (error: any) {
     console.error("API Error fetching issuances:", error);
-    return NextResponse.json(
-      { message: "Failed to fetch issuance records.", error: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ message: "Failed to fetch issuance records.", error: error.message }, { status: 500 });
   }
 }
 
@@ -60,62 +30,69 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const client: MongoClient = await clientPromise;
   const session = client.startSession();
-  console.log("[Issuance API] Received POST request. Starting transaction.");
 
   try {
-    session.startTransaction();
+    await session.startTransaction();
+    const { studentRegNo, experimentId, equipmentIds } = await request.json();
 
-    const { studentRegNo, experimentId } = await request.json();
-
-    if (!studentRegNo || !experimentId) {
-      throw new Error("Student registration number and experiment ID are required.");
+    if (!studentRegNo) {
+      throw new Error("Student registration number is required.");
     }
-    console.log(`[Issuance API] Processing for Student: ${studentRegNo}, Experiment ID: ${experimentId}`);
 
     const db = client.db("test");
-    const experimentsCollection = db.collection("experiments");
     const equipmentCollection = db.collection("equipments");
     const issuancesCollection = db.collection("issuances");
+    
+    let issuedEquipmentIds: ObjectId[] = [];
+    let issuanceName = "";
 
-    const experiment = await experimentsCollection.findOne(
-      { _id: new ObjectId(experimentId) },
-      { session }
-    );
+    // --- LOGIC FOR STANDARD EXPERIMENT ISSUANCE ---
+    if (experimentId) {
+        const experimentsCollection = db.collection("experiments");
+        const experiment = await experimentsCollection.findOne({ _id: new ObjectId(experimentId) }, { session });
+        if (!experiment) throw new Error("Experiment not found.");
+        issuanceName = experiment.name;
 
-    if (!experiment) {
-      throw new Error("Experiment not found.");
+        for (const req of experiment.requiredEquipment) {
+            const availableItems = await equipmentCollection.find({
+                name: req.name, condition: "Working", status: { $ne: "Issued" }
+            }, { session }).limit(req.quantity).toArray();
+
+            if (availableItems.length < req.quantity) {
+                throw new Error(`Not enough available units of ${req.name}.`);
+            }
+            issuedEquipmentIds.push(...availableItems.map((item: any) => item._id));
+        }
+    } 
+    // --- LOGIC FOR CUSTOM ISSUANCE ---
+    else if (equipmentIds && Array.isArray(equipmentIds) && equipmentIds.length > 0) {
+        issuanceName = "Custom Issuance";
+        const objectIds = equipmentIds.map(id => new ObjectId(id));
+
+        const itemsToIssue = await equipmentCollection.find({
+            _id: { $in: objectIds }, condition: "Working", status: { $ne: "Issued" }
+        }, { session }).toArray();
+
+        if (itemsToIssue.length !== equipmentIds.length) {
+            throw new Error("One or more selected items are no longer available.");
+        }
+        issuedEquipmentIds = itemsToIssue.map((item: any) => item._id);
+    } 
+    else {
+        throw new Error("Request must include either an experiment ID or a list of equipment IDs.");
     }
-    console.log(`[Issuance API] Found experiment: "${experiment.name}"`);
 
-    const issuedEquipmentIds: ObjectId[] = [];
-    for (const req of experiment.requiredEquipment) {
-      console.log(`[Issuance API] Checking availability for: ${req.quantity}x ${req.name}`);
-      const availableItems = await equipmentCollection.find({
-        name: req.name,
-        condition: "Working",
-        status: { $ne: "Issued" }
-      }, { session }).limit(req.quantity).toArray();
-
-      console.log(`[Issuance API] Found ${availableItems.length} available units.`);
-      if (availableItems.length < req.quantity) {
-        throw new Error(`Not enough available units of ${req.name}. Required: ${req.quantity}, Available: ${availableItems.length}.`);
-      }
-      
-      issuedEquipmentIds.push(...availableItems.map(item => item._id));
-    }
-
-    console.log(`[Issuance API] All equipment available. Updating ${issuedEquipmentIds.length} items to 'Issued'.`);
+    // --- DB Updates (common for both types) ---
     await equipmentCollection.updateMany(
       { _id: { $in: issuedEquipmentIds } },
       { $set: { status: "Issued", issuedTo: studentRegNo, issuedDate: new Date() } },
       { session }
     );
     
-    console.log("[Issuance API] Creating new issuance record.");
     const issuanceRecord = {
       studentRegNo,
-      experimentId: new ObjectId(experimentId),
-      experimentName: experiment.name,
+      experimentId: experimentId ? new ObjectId(experimentId) : null,
+      experimentName: issuanceName,
       equipmentIds: issuedEquipmentIds,
       issuanceDate: new Date(),
       returnDate: null,
@@ -123,25 +100,62 @@ export async function POST(request: NextRequest) {
     };
 
     await issuancesCollection.insertOne(issuanceRecord, { session });
-
     await session.commitTransaction();
-    console.log("[Issuance API] Transaction committed successfully.");
 
     return NextResponse.json({ message: "Issuance recorded successfully!" });
 
   } catch (error: any) {
-    if (session.inTransaction()) {
-      await session.abortTransaction();
-      console.error("[Issuance API] Transaction aborted due to error.");
-    }
-    console.error("[Issuance API] Issuance failed:", error.message);
-    return NextResponse.json(
-      { message: error.message || "Failed to record issuance." },
-      { status: 500 }
-    );
+    if (session.inTransaction()) await session.abortTransaction();
+    console.error("Issuance failed:", error.message);
+    return NextResponse.json({ message: error.message || "Failed to record issuance." }, { status: 500 });
   } finally {
     session.endSession();
-    console.log("[Issuance API] MongoDB session ended.");
+  }
+}
+
+// --- Function to PUT (update) an issuance to 'Returned' ---
+export async function PUT(request: NextRequest) {
+  const client: MongoClient = await clientPromise;
+  const session = client.startSession();
+
+  try {
+    await session.startTransaction();
+    const { issuanceId } = await request.json();
+
+    if (!issuanceId) {
+      throw new Error("Issuance ID is required to process a return.");
+    }
+
+    const db = client.db("test");
+    const issuancesCollection = db.collection("issuances");
+    const equipmentCollection = db.collection("equipments");
+
+    const issuanceToReturn = await issuancesCollection.findOne({ _id: new ObjectId(issuanceId) }, { session });
+    if (!issuanceToReturn) throw new Error("Issuance record not found.");
+    if (issuanceToReturn.status === "Returned") throw new Error("This equipment has already been returned.");
+
+    await equipmentCollection.updateMany(
+      { _id: { $in: issuanceToReturn.equipmentIds } },
+      { $set: { status: "Available" }, $unset: { issuedTo: "", issuedDate: "" } },
+      { session }
+    );
+
+    await issuancesCollection.updateOne(
+      { _id: new ObjectId(issuanceId) },
+      { $set: { status: "Returned", returnDate: new Date() } },
+      { session }
+    );
+
+    await session.commitTransaction();
+
+    return NextResponse.json({ message: "Equipment returned successfully!" });
+
+  } catch (error: any) {
+    if (session.inTransaction()) await session.abortTransaction();
+    console.error("Return failed:", error);
+    return NextResponse.json({ message: error.message || "Failed to return equipment." }, { status: 500 });
+  } finally {
+    session.endSession();
   }
 }
 

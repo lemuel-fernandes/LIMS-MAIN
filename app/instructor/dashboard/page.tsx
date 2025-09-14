@@ -1,375 +1,358 @@
 "use client";
 
+import { useEffect, useState, useCallback } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
-import { Search, Plus, Eye, RotateCcw, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { BookUp, CheckCircle, AlertTriangle, FlaskConical, Beaker, Users, Package, Clock, ArrowRight } from "lucide-react";
+
+// --- Type Definitions ---
+type Equipment = { _id: string; name: string; serialNo: string; quantity: string; condition: string; status?: string; };
+type Student = { _id: string; regNo: string; name: string; class: string; department: string; };
+type Issuance = { _id: string; issuanceDate: string; status: "Active" | "Returned"; experimentName: string; studentDetails: { name: string; regNo: string; }; };
+type Experiment = { _id: string; name: string; requiredEquipment: { name: string; quantity: number; }[]; };
+
+// --- API Helper Functions ---
+const fetchStudentByRegNo = async (regNo: string): Promise<Student | null> => {
+    if (!regNo) return null;
+    try {
+        const response = await fetch(`/api/students/${encodeURIComponent(regNo)}`);
+        if (!response.ok) return null;
+        return await response.json();
+    } catch (error) {
+        console.error("Failed to fetch student:", error);
+        return null;
+    }
+};
+
+const fetchExperiments = async (department: string, year: string): Promise<Experiment[]> => {
+    if (!department || !year) return [];
+    try {
+        const response = await fetch(`/api/experiments?department=${encodeURIComponent(department)}&year=${encodeURIComponent(year)}`);
+        if (!response.ok) return [];
+        return await response.json();
+    } catch (error) {
+        console.error("Failed to fetch experiments:", error);
+        return [];
+    }
+};
 
 export default function InstructorDashboard() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [issuanceData, setIssuanceData] = useState<any[]>([]);
+  // --- State for Dashboard Overview ---
+  const [stats, setStats] = useState({ equipment: 0, students: 0, activeIssuances: 0 });
+  const [recentIssuances, setRecentIssuances] = useState<Issuance[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
-  useEffect(() => {
-    const fetchIssuances = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch("/api/issuance");
-        if (!res.ok) throw new Error("Failed to fetch issuance data");
-        const data = await res.json();
-        setIssuanceData(data);
-        setError("");
-      } catch (err: any) {
-        setError(err.message || "Error fetching data");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchIssuances();
+  // --- State for Issuance Dialog ---
+  const [equipmentData, setEquipmentData] = useState<Equipment[]>([]);
+  const [issueOpen, setIssueOpen] = useState(false);
+  const [issuanceType, setIssuanceType] = useState<'standard' | 'custom'>('standard');
+  const [studentRegNo, setStudentRegNo] = useState('');
+  const [studentLoading, setStudentLoading] = useState(false);
+  const [fetchedStudent, setFetchedStudent] = useState<Student | null>(null);
+  const [experiments, setExperiments] = useState<Experiment[]>([]);
+  const [experimentsLoading, setExperimentsLoading] = useState(false);
+  const [selectedExperimentId, setSelectedExperimentId] = useState('');
+  const [equipmentCheck, setEquipmentCheck] = useState({ available: false, message: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [formMessage, setFormMessage] = useState({ type: "", text: "" });
+  const [customEquipmentSearch, setCustomEquipmentSearch] = useState("");
+  const [customSelectedIds, setCustomSelectedIds] = useState<Set<string>>(new Set());
+
+  const fetchDashboardData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [equipRes, studentRes, issuanceRes] = await Promise.all([
+        fetch("/incharge/equipment/api"),
+        fetch("/api/students"),
+        fetch("/api/issuances"),
+      ]);
+      
+      const equipment = await equipRes.json();
+      const students = await studentRes.json();
+      const issuances = await issuanceRes.json();
+
+      setEquipmentData(Array.isArray(equipment) ? equipment : []);
+      setRecentIssuances(Array.isArray(issuances) ? issuances.slice(0, 5) : []);
+
+      setStats({
+        equipment: Array.isArray(equipment) ? equipment.length : 0,
+        students: Array.isArray(students) ? students.length : 0,
+        activeIssuances: Array.isArray(issuances) ? issuances.filter((i: Issuance) => i.status === 'Active').length : 0,
+      });
+
+    } catch (error) {
+      console.error("Failed to fetch dashboard data:", error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+  
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
 
-  const handleReturn = (id: number) => {
-    console.log("Processing return for issuance:", id);
+
+  // --- Event Handlers for Issuance Dialog ---
+  const handleFetchStudent = async () => {
+      if (!studentRegNo) return;
+      setStudentLoading(true);
+      setFetchedStudent(null);
+      setExperiments([]);
+      setSelectedExperimentId('');
+      setFormMessage({ type: '', text: '' });
+
+      const student = await fetchStudentByRegNo(studentRegNo);
+      setFetchedStudent(student);
+      setStudentLoading(false);
+
+      if (student && student.department && student.class) {
+        // Only fetch experiments if we are in standard mode
+        if(issuanceType === 'standard') {
+            setExperimentsLoading(true);
+            const fetchedExperiments = await fetchExperiments(student.department, student.class);
+            setExperiments(fetchedExperiments);
+            setExperimentsLoading(false);
+        }
+      } else {
+        setFormMessage({ type: 'error', text: 'Student not found or missing required details.' });
+      }
   };
 
-  const filteredData = issuanceData.filter((item) => {
-    const matchesSearch =
-      item.student?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.batch?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.experiment + "").includes(searchTerm);
-    const matchesStatus =
-      filterStatus === "all" || item.status?.toLowerCase() === filterStatus;
-    return matchesSearch && matchesStatus;
-  });
+  useEffect(() => {
+    if (issuanceType === 'standard' && selectedExperimentId) {
+        const experiment = experiments.find(e => e._id === selectedExperimentId);
+        if (!experiment) return;
+        const availableItems = equipmentData.filter(e => e.condition?.toLowerCase() === 'working' && e.status !== 'Issued');
+        let allMet = true;
+        let message = "All required equipment is available.";
+        for (const req of experiment.requiredEquipment) {
+            const count = availableItems.filter(e => e.name === req.name).reduce((sum, item) => sum + Number(item.quantity || 1), 0);
+            if (count < req.quantity) {
+                allMet = false;
+                message = `Unavailable: Only ${count}/${req.quantity} of ${req.name} found.`;
+                break;
+            }
+        }
+        setEquipmentCheck({ available: allMet, message });
+    } else {
+        setEquipmentCheck({ available: false, message: '' });
+    }
+  }, [selectedExperimentId, equipmentData, experiments, issuanceType]);
 
-  // Stats calculations
-  const totalIssued = issuanceData.length;
-  const returned = issuanceData.filter(
-    (i) => i.status?.toLowerCase() === "returned"
-  ).length;
-  const overdue = issuanceData.filter(
-    (i) => i.status?.toLowerCase() === "overdue"
-  ).length;
-  const damaged = issuanceData.filter(
-    (i) => i.status?.toLowerCase() === "damaged"
-  ).length;
-  const returnRate = totalIssued
-    ? Math.round((returned / totalIssued) * 100)
-    : 0;
-  const damageRate = totalIssued
-    ? Math.round((damaged / totalIssued) * 100)
-    : 0;
+  const handleIssuanceSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setFormMessage({ type: "", text: "" });
+
+    let payload: any;
+    if (issuanceType === 'standard') {
+        payload = { studentRegNo: fetchedStudent?.regNo, experimentId: selectedExperimentId };
+    } else {
+        if (customSelectedIds.size === 0) {
+            setFormMessage({ type: 'error', text: 'Please select at least one piece of equipment.' });
+            setSubmitting(false);
+            return;
+        }
+        payload = { studentRegNo: fetchedStudent?.regNo, equipmentIds: Array.from(customSelectedIds) };
+    }
+
+    try {
+        const response = await fetch('/api/issuances', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+        setFormMessage({ type: 'success', text: result.message });
+        await fetchDashboardData();
+        setTimeout(() => handleDialogChange(false), 2000);
+    } catch (error: any) {
+        setFormMessage({ type: 'error', text: error.message });
+    } finally {
+        setSubmitting(false);
+    }
+  };
+  
+  const handleDialogChange = (isOpen: boolean) => {
+    setIssueOpen(isOpen);
+    if (!isOpen) {
+        setIssuanceType('standard');
+        setStudentRegNo('');
+        setFetchedStudent(null);
+        setExperiments([]);
+        setSelectedExperimentId('');
+        setEquipmentCheck({ available: false, message: '' });
+        setFormMessage({ type: '', text: '' });
+        setCustomSelectedIds(new Set());
+        setCustomEquipmentSearch("");
+    }
+  };
+
+  const toggleCustomEquipment = (id: string) => {
+    setCustomSelectedIds(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(id)) {
+            newSet.delete(id);
+        } else {
+            newSet.add(id);
+        }
+        return newSet;
+    });
+  };
+
+  const availableEquipmentForCustom = equipmentData
+    .filter(e => e.condition?.toLowerCase() === 'working' && e.status !== 'Issued')
+    .filter(e => 
+        (e.name || '').toLowerCase().includes(customEquipmentSearch.toLowerCase()) || 
+        (e.serialNo || '').toLowerCase().includes(customEquipmentSearch.toLowerCase())
+    );
+
+  // CORRECTED: More robust logic for disabling the submit button
+  const isSubmitDisabled = submitting || !fetchedStudent ||
+    (issuanceType === 'standard' && !equipmentCheck.available) ||
+    (issuanceType === 'custom' && customSelectedIds.size === 0);
 
   return (
     <DashboardLayout
       userRole="instructor"
-      title="Dashboard Overview"
-      subtitle="Monitor equipment issuance and manage student returns"
+      title="Instructor Dashboard"
+      subtitle="An overview of lab activities and equipment status."
     >
-      <div className="space-y-6">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="bg-white rounded-lg p-6 shadow-sm border">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total Issued</p>
-                <p className="text-3xl font-bold text-gray-900">
-                  {totalIssued}
-                </p>
-                <p className="text-sm text-blue-600 flex items-center gap-1 mt-1">
-                  <span>↗</span> Active this month
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <div className="w-6 h-6 bg-blue-500 rounded"></div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg p-6 shadow-sm border">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Returned</p>
-                <p className="text-3xl font-bold text-gray-900">{returned}</p>
-                <p className="text-sm text-green-600 flex items-center gap-1 mt-1">
-                  <span>↗</span> {returnRate}% return rate
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <div className="w-6 h-6 bg-green-500 rounded"></div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg p-6 shadow-sm border">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Overdue</p>
-                <p className="text-3xl font-bold text-gray-900">{overdue}</p>
-                <p className="text-sm text-red-600 flex items-center gap-1 mt-1">
-                  <AlertTriangle className="w-3 h-3" />
-                  Needs attention
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                <div className="w-6 h-6 bg-red-500 rounded"></div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg p-6 shadow-sm border">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Damaged</p>
-                <p className="text-3xl font-bold text-gray-900">{damaged}</p>
-                <p className="text-sm text-orange-600 flex items-center gap-1 mt-1">
-                  <span>↘</span> {damageRate}% damage rate
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                <div className="w-6 h-6 bg-orange-500 rounded"></div>
-              </div>
-            </div>
-          </div>
+      <div className="space-y-8">
+        {/* Key Statistics */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card>
+                <CardContent className="p-6 flex items-center justify-between">
+                    <div><p className="text-sm font-medium text-gray-500">Total Equipment</p><p className="text-3xl font-bold text-gray-900">{stats.equipment}</p></div>
+                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center"><Package className="w-6 h-6 text-blue-600" /></div>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardContent className="p-6 flex items-center justify-between">
+                    <div><p className="text-sm font-medium text-gray-500">Enrolled Students</p><p className="text-3xl font-bold text-gray-900">{stats.students}</p></div>
+                    <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center"><Users className="w-6 h-6 text-purple-600" /></div>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardContent className="p-6 flex items-center justify-between">
+                    <div><p className="text-sm font-medium text-gray-500">Active Issuances</p><p className="text-3xl font-bold text-gray-900">{stats.activeIssuances}</p></div>
+                    <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center"><Clock className="w-6 h-6 text-orange-600" /></div>
+                </CardContent>
+            </Card>
         </div>
 
-        {/* Equipment Issuance List */}
-        <div className="bg-white rounded-lg shadow-sm border">
-          <div className="p-6 border-b">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Equipment Issuance List
-                </h3>
-                <p className="text-sm text-green-600 mt-1">
-                  Active Usage & Returns
-                </p>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <input
-                    type="text"
-                    placeholder="Search student, batch, or experiment..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm w-64"
-                  />
-                </div>
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                >
-                  <option value="all">All Status</option>
-                  <option value="issued">Issued</option>
-                  <option value="returned">Returned</option>
-                  <option value="overdue">Overdue</option>
-                  <option value="damaged">Damaged</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Student Details
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Issue Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Equipment
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Experiment
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Due Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredData.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {item.student}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {item.batch}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {item.date}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {item.quantity}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      #{item.experiment}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {item.dueDate}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          item.status === "Returned"
-                            ? "bg-green-100 text-green-800"
-                            : item.status === "Issued"
-                            ? "bg-blue-100 text-blue-800"
-                            : item.status === "Overdue"
-                            ? "bg-red-100 text-red-800"
-                            : "bg-orange-100 text-orange-800"
-                        }`}
-                      >
-                        {item.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div className="flex items-center gap-2">
-                        <Link href={`/instructor/issuance/${item.id}`}>
-                          <button className="text-gray-600 hover:text-gray-900">
-                            <Eye className="w-4 h-4" />
-                          </button>
+        {/* Quick Actions & Recent Activity */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-1">
+                <Card className="h-full">
+                    <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
+                    <CardContent className="flex flex-col gap-3">
+                        <Dialog open={issueOpen} onOpenChange={handleDialogChange}>
+                            <DialogTrigger asChild>
+                                <Button className="w-full bg-green-600 hover:bg-green-700"><BookUp className="w-4 h-4 mr-2" /> Issue Equipment</Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-2xl">
+                                <DialogHeader><DialogTitle>New Equipment Issuance</DialogTitle></DialogHeader>
+                                <div className="flex border border-gray-200 rounded-md p-1 bg-gray-100"><Button onClick={() => setIssuanceType('standard')} variant={issuanceType === 'standard' ? 'default' : 'ghost'} className="flex-1"><FlaskConical className="w-4 h-4 mr-2"/> Standard</Button><Button onClick={() => setIssuanceType('custom')} variant={issuanceType === 'custom' ? 'default' : 'ghost'} className="flex-1"><Beaker className="w-4 h-4 mr-2"/> Custom</Button></div>
+                                <form onSubmit={handleIssuanceSubmit} className="space-y-4 pt-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">1. Student Register Number</label>
+                                        <Input placeholder="e.g., CS101" value={studentRegNo} onChange={e => setStudentRegNo(e.target.value)} onBlur={handleFetchStudent} disabled={studentLoading}/>
+                                        {studentLoading && <p className="text-sm text-gray-500 mt-1">Searching...</p>}
+                                    </div>
+                                    {fetchedStudent && (
+                                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm"><p><strong>Name:</strong> {fetchedStudent.name}</p><p><strong>Dept:</strong> {fetchedStudent.department} | <strong>Year:</strong> {fetchedStudent.class}</p></div>
+                                    )}
+                                    {issuanceType === 'standard' ? (
+                                        <div className="space-y-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-1">2. Select Experiment</label>
+                                                <select value={selectedExperimentId} onChange={e => setSelectedExperimentId(e.target.value)} className="w-full border rounded p-2 bg-gray-50" disabled={!fetchedStudent || experimentsLoading || experiments.length === 0}>
+                                                    <option value="" disabled>{experimentsLoading ? "Loading..." : !fetchedStudent ? "Enter student first" : experiments.length === 0 ? "No experiments found" : "Select an experiment..."}</option>
+                                                    {experiments.map(exp => <option key={exp._id} value={exp._id}>{exp.name}</option>)}
+                                                </select>
+                                            </div>
+                                            {selectedExperimentId && (
+                                                <div className={`flex items-center gap-2 p-2 rounded-md text-sm ${equipmentCheck.available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}><p>{equipmentCheck.message}</p></div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                           <label className="block text-sm font-medium text-gray-700">2. Select Equipment</label>
+                                           <Input placeholder="Search available equipment..." value={customEquipmentSearch} onChange={e => setCustomEquipmentSearch(e.target.value)} />
+                                           <div className="max-h-60 overflow-y-auto border rounded-md p-2 space-y-2">
+                                            {availableEquipmentForCustom.map(item => (
+                                                <div key={item._id} className={`flex items-center justify-between p-2 rounded-md cursor-pointer ${customSelectedIds.has(item._id) ? 'bg-blue-100' : 'hover:bg-gray-50'}`} onClick={() => toggleCustomEquipment(item._id)}>
+                                                    <div><p className="font-medium">{item.name}</p><p className="text-xs text-gray-500">{item.serialNo}</p></div>
+                                                    {customSelectedIds.has(item._id) && <CheckCircle className="w-5 h-5 text-blue-600" />}
+                                                </div>
+                                            ))}
+                                            {availableEquipmentForCustom.length === 0 && <p className="text-sm text-center text-gray-500 py-4">No available equipment matches.</p>}
+                                           </div>
+                                           <p className="text-sm text-gray-600">{customSelectedIds.size} item(s) selected.</p>
+                                        </div>
+                                    )}
+                                    {formMessage.text && (<div className={`text-sm p-2 rounded-md text-center ${formMessage.type === 'error' ? 'text-red-800 bg-red-100' : 'text-green-800 bg-green-100'}`}>{formMessage.text}</div>)}
+                                    <DialogFooter>
+                                        <Button type="submit" disabled={isSubmitDisabled} className="bg-blue-600 hover:bg-blue-700 w-full">
+                                            {submitting ? 'Recording...' : 'Confirm and Issue'}
+                                        </Button>
+                                    </DialogFooter>
+                                </form>
+                            </DialogContent>
+                        </Dialog>
+                        <Link href="/instructor/issuances">
+                            <Button variant="outline" className="w-full">
+                                View All Issuances <ArrowRight className="w-4 h-4 ml-2" />
+                            </Button>
                         </Link>
-                        {(item.status === "Issued" ||
-                          item.status === "Overdue") && (
-                          <button
-                            onClick={() => handleReturn(item.id)}
-                            className="text-green-600 hover:text-green-900"
-                            title="Process Return"
-                          >
-                            <RotateCcw className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="px-6 py-4 border-t bg-gray-50">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-700">
-                Showing {filteredData.length} of {issuanceData.length} entries
-              </p>
-              <div className="flex items-center gap-2">
-                <button className="px-3 py-1 text-sm border rounded">‹</button>
-                <button className="px-3 py-1 text-sm bg-blue-600 text-white rounded">
-                  1
-                </button>
-                <button className="px-3 py-1 text-sm border rounded">2</button>
-                <button className="px-3 py-1 text-sm border rounded">3</button>
-                <button className="px-3 py-1 text-sm border rounded">›</button>
-              </div>
+                    </CardContent>
+                </Card>
             </div>
-          </div>
-        </div>
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Link href="/instructor/issue-equipment">
-            <Button className="w-full bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-2 h-12">
-              <Plus className="w-5 h-5" />
-              Issue New Equipment
-            </Button>
-          </Link>
-
-          <Link href="/instructor/returns">
-            <Button
-              variant="outline"
-              className="w-full flex items-center justify-center gap-2 h-12 bg-transparent"
-            >
-              <RotateCcw className="w-5 h-5" />
-              Process Returns
-            </Button>
-          </Link>
-
-          <Link href="/instructor/overdue">
-            <Button
-              variant="outline"
-              className="w-full flex items-center justify-center gap-2 h-12 border-red-200 text-red-600 hover:bg-red-50 bg-transparent"
-            >
-              <AlertTriangle className="w-5 h-5" />
-              View Overdue Items
-            </Button>
-          </Link>
-        </div>
-
-        {/* Recent Activity */}
-        <div className="bg-white rounded-lg p-6 shadow-sm border">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
-            Recent Activity
-          </h3>
-          <div className="space-y-3">
-            {loading ? (
-              <div className="text-gray-500">Loading...</div>
-            ) : error ? (
-              <div className="text-red-500">{error}</div>
-            ) : issuanceData.length === 0 ? (
-              <div className="text-gray-500">No recent activity.</div>
-            ) : (
-              issuanceData
-                .slice()
-                .sort((a, b) => {
-                  // Sort by most recent (assuming a.date is ISO or yyyy-mm-dd)
-                  return (
-                    new Date(b.date).getTime() - new Date(a.date).getTime()
-                  );
-                })
-                .slice(0, 6)
-                .map((item, idx) => {
-                  let color = "bg-blue-500";
-                  let msg = `New equipment issued to ${item.student}`;
-                  if (item.status?.toLowerCase() === "returned") {
-                    color = "bg-green-500";
-                    msg = `${item.student} returned equipment for Experiment #${item.experiment}`;
-                  } else if (item.status?.toLowerCase() === "overdue") {
-                    color = "bg-red-500";
-                    msg = `Equipment overdue from ${item.student}`;
-                  } else if (item.status?.toLowerCase() === "damaged") {
-                    color = "bg-orange-500";
-                    msg = `Damaged equipment reported by ${item.student}`;
-                  }
-                  return (
-                    <div
-                      key={item._id || idx}
-                      className={`flex items-center justify-between py-2 ${
-                        idx < 5 ? "border-b border-gray-100" : ""
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full ${color}`}></div>
-                        <span className="text-sm text-gray-900">{msg}</span>
-                      </div>
-                      <span className="text-sm text-gray-500">
-                        {item.date || "-"}
-                      </span>
-                    </div>
-                  );
-                })
-            )}
-          </div>
+            <div className="lg:col-span-2">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Recent Activity</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {loading ? <p className="text-sm text-gray-500">Loading activity...</p> : recentIssuances.length > 0 ? (
+                            <div className="space-y-4">
+                                {recentIssuances.map(issuance => (
+                                    <div key={issuance._id} className="flex items-center justify-between pb-2 border-b last:border-b-0">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-2 h-2 rounded-full ${issuance.status === 'Active' ? 'bg-blue-500' : 'bg-gray-400'}`}></div>
+                                            <div>
+                                                <p className="font-medium">{issuance.studentDetails?.name || 'Unknown'}</p>
+                                                <p className="text-sm text-gray-500">{issuance.experimentName}</p>
+                                            </div>
+                                        </div>
+                                        <p className="text-xs text-gray-500">{new Date(issuance.issuanceDate).toLocaleDateString()}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-gray-500 text-center py-8">No recent issuances found.</p>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
         </div>
       </div>
     </DashboardLayout>
   );
 }
+

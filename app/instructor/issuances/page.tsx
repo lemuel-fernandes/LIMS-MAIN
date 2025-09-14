@@ -5,7 +5,8 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, AlertCircle, RefreshCw, Undo, CheckCircle, User, BookText, Beaker } from "lucide-react";
+import { Loader2, AlertCircle, RefreshCw, Undo, CheckCircle, User, BookText, Beaker, Eye } from "lucide-react";
+import Link from "next/link";
 
 // --- TYPE DEFINITIONS ---
 type Equipment = {
@@ -69,7 +70,6 @@ const IssuancesPage = () => {
         const result = await response.json();
         throw new Error(result.message || 'Failed to process return.');
       }
-      // Re-fetch data to update the UI with the new status
       await fetchIssuances();
     } catch (err: any) {
       setError(err.message);
@@ -80,7 +80,7 @@ const IssuancesPage = () => {
 
   return (
     <DashboardLayout
-      userRole="incharge"
+      userRole="instructor"
       title="Issuance Records"
       subtitle="View and manage all active and returned equipment issuances."
     >
@@ -124,7 +124,6 @@ const IssuancesPage = () => {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t pt-4">
-                {/* Student Details */}
                 <div>
                   <h4 className="text-sm font-semibold text-gray-600 mb-2 flex items-center gap-2"><User className="w-4 h-4"/>Student Details</h4>
                   {issuance.studentDetails ? (
@@ -136,7 +135,6 @@ const IssuancesPage = () => {
                   ) : <p className="text-sm text-gray-500">Student details not found.</p>}
                 </div>
 
-                {/* Equipment Details */}
                 <div>
                   <h4 className="text-sm font-semibold text-gray-600 mb-2 flex items-center gap-2"><BookText className="w-4 h-4"/>Issued Equipment</h4>
                   <ul className="list-disc list-inside text-sm space-y-1">
@@ -149,9 +147,14 @@ const IssuancesPage = () => {
                 </div>
               </div>
 
-              {/* Return Action */}
-              <div className="border-t mt-4 pt-4 text-right">
-                {issuance.status === 'Active' ? (
+              <div className="border-t mt-4 pt-4 flex justify-end items-center gap-3">
+                <Link href={`/instructor/issuances/${issuance._id}`}>
+                  <Button variant="outline" size="sm">
+                    <Eye className="w-4 h-4 mr-2" />
+                    View Details
+                  </Button>
+                </Link>
+                {issuance.status === 'Active' && (
                   <Button
                     onClick={() => handleReturn(issuance._id)}
                     disabled={returningId === issuance._id}
@@ -161,10 +164,6 @@ const IssuancesPage = () => {
                     <Undo className={`w-4 h-4 mr-2 ${returningId === issuance._id ? 'animate-spin' : ''}`} />
                     {returningId === issuance._id ? 'Processing...' : 'Mark as Returned'}
                   </Button>
-                ) : (
-                  <p className="text-sm text-gray-500">
-                    Returned on: {new Date(issuance.returnDate!).toLocaleString()}
-                  </p>
                 )}
               </div>
 

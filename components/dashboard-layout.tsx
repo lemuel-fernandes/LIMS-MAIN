@@ -30,21 +30,29 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 type EquipmentStat = { _id: string };
 type IssuanceStat = { status: "Active" | "Returned" };
 
-// --- Navigation Items ---
-const navItems = [
-  { href: "/incharge/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/incharge/departments", label: "Departments", icon: Users },
-  { href: "/incharge/issuances", label: "Issuances", icon: ClipboardList },
-  { href: "/incharge/statistics", label: "Statistics", icon: BarChart2 },
+// --- Role-Specific Navigation ---
+// Navigation items visible to all roles
+const baseNavItems = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/departments", label: "Departments", icon: Users },
+  { href: "/statistics", label: "Statistics", icon: BarChart2 },
 ];
+
+// Navigation items visible ONLY to the instructor
+const instructorNavItems = [
+    { href: "/issuances", label: "Issuances", icon: ClipboardList },
+];
+
+// Bottom navigation items visible to all roles
 const bottomNavItems = [
-  { href: "/incharge/profile", label: "Profile", icon: User },
+  { href: "/profile", label: "Profile", icon: User },
 ];
 
 // Helper component for sidebar navigation links
 const NavLink = ({ href, label, icon: Icon }: { href: string; label: string; icon: React.ElementType }) => {
   const pathname = usePathname();
-  const isActive = pathname === href;
+  // Use startsWith for better active state matching
+  const isActive = pathname.startsWith(href);
 
   return (
     <Link href={href}>
@@ -62,34 +70,42 @@ const NavLink = ({ href, label, icon: Icon }: { href: string; label: string; ico
 
 // The main Dashboard Layout component
 export const DashboardLayout = ({
+  userRole,
   title,
   subtitle,
   children,
 }: {
-  userRole: string;
+  userRole: "incharge" | "instructor";
   title: string;
   subtitle: string;
   children: ReactNode;
 }) => {
   const [stats, setStats] = useState({ totalEquipment: 0, activeIssuances: 0 });
 
+  // Generate the final navigation list based on the user's role
+  const navItems = [
+      ...baseNavItems.map(item => ({...item, href: `/${userRole}${item.href}`})),
+      ...(userRole === 'instructor' ? instructorNavItems.map(item => ({...item, href: `/${userRole}${item.href}`})) : [])
+  ];
+   const roleBottomNavItems = bottomNavItems.map(item => ({...item, href: `/${userRole}${item.href}`}));
+
+
   useEffect(() => {
     const fetchStats = async () => {
       try {
         const [equipmentRes, issuancesRes] = await Promise.all([
-          fetch('/incharge/equipment/api'),
+          fetch('/incharge/equipment/api'), // Equipment count is global
           fetch('/api/issuances')
         ]);
-        if (!equipmentRes.ok || !issuancesRes.ok) return;
-
-        const equipmentData: EquipmentStat[] = await equipmentRes.json();
-        const issuancesData: IssuanceStat[] = await issuancesRes.json();
-        const activeIssuances = issuancesData.filter(issuance => issuance.status === 'Active').length;
-        
-        setStats({
-          totalEquipment: equipmentData.length,
-          activeIssuances: activeIssuances
-        });
+        if (equipmentRes.ok && issuancesRes.ok) {
+          const equipmentData: EquipmentStat[] = await equipmentRes.json();
+          const issuancesData: IssuanceStat[] = await issuancesRes.json();
+          const activeIssuances = issuancesData.filter(issuance => issuance.status === 'Active').length;
+          setStats({
+            totalEquipment: equipmentData.length,
+            activeIssuances: activeIssuances
+          });
+        }
       } catch (error) {
         console.error("Failed to fetch layout stats:", error);
       }
@@ -99,19 +115,18 @@ export const DashboardLayout = ({
 
   return (
     <div className="min-h-screen w-full bg-gray-50/50">
-      {/* --- DESKTOP SIDEBAR (New `position: fixed` Approach) --- */}
-      {/* This sidebar is now fixed to the left side of the screen on large devices */}
+      {/* --- DESKTOP SIDEBAR (Static Position) --- */}
       <div className="hidden lg:block fixed left-0 top-0 h-full w-[280px] border-r bg-white z-20">
         <div className="grid h-full max-h-screen grid-rows-[auto_1fr_auto]">
-          {/* Section 1: Header */}
+          {/* Header */}
           <div className="flex h-[60px] items-center border-b px-6">
-            <Link className="flex items-center gap-2 font-semibold" href="/incharge/dashboard">
+            <Link className="flex items-center gap-2 font-semibold" href={`/${userRole}/dashboard`}>
               <FlaskConical className="h-6 w-6 text-blue-600" />
               <span>LIMS</span>
             </Link>
           </div>
 
-          {/* Section 2: Main Navigation (Scrollable) */}
+          {/* Main Navigation */}
           <div className="overflow-auto py-2">
             <nav className="grid items-start px-4 text-sm font-medium">
               {navItems.map((item) => (
@@ -120,10 +135,10 @@ export const DashboardLayout = ({
             </nav>
           </div>
 
-          {/* Section 3: Footer (Sticks to the bottom) */}
+          {/* Footer */}
           <div className="border-t p-4">
              <nav className="grid items-start text-sm font-medium">
-                {bottomNavItems.map((item) => (
+                {roleBottomNavItems.map((item) => (
                     <NavLink key={item.label} {...item} />
                 ))}
                  <a href="/login" onClick={() => localStorage.clear()} className="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-700 transition-all hover:bg-gray-100">
@@ -136,7 +151,6 @@ export const DashboardLayout = ({
       </div>
 
       {/* --- MAIN CONTENT & HEADER --- */}
-      {/* A left margin is added on large screens to prevent content from going under the fixed sidebar */}
       <div className="flex flex-col lg:ml-[280px]">
         <header className="flex h-14 lg:h-[60px] items-center gap-4 border-b bg-white px-6 sticky top-0 z-10">
           {/* Mobile Menu */}
@@ -149,7 +163,7 @@ export const DashboardLayout = ({
             </SheetTrigger>
             <SheetContent side="left" className="sm:max-w-xs">
               <nav className="grid gap-6 text-base font-medium">
-                <Link href="/incharge/dashboard" className="group flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full bg-blue-600 text-lg font-semibold text-white">
+                <Link href={`/${userRole}/dashboard`} className="group flex h-10 w-10 shrink-0 items-center justify-center gap-2 rounded-full bg-blue-600 text-lg font-semibold text-white">
                   <FlaskConical className="h-5 w-5 transition-all group-hover:scale-110" />
                   <span className="sr-only">LIMS</span>
                 </Link>
@@ -192,7 +206,7 @@ export const DashboardLayout = ({
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>My Account</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild><Link href="/incharge/profile">Profile</Link></DropdownMenuItem>
+              <DropdownMenuItem asChild><Link href={`/${userRole}/profile`}>Profile</Link></DropdownMenuItem>
               <DropdownMenuItem>Settings</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
