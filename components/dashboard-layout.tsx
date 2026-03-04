@@ -25,6 +25,8 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { GuestBanner } from "@/components/guest-banner";
+import { guestStore } from "@/lib/guest-store";
 
 // Type definitions for the statistics fetched in the header
 type EquipmentStat = { _id: string };
@@ -115,6 +117,7 @@ export const DashboardLayout = ({
 
   return (
     <div className="min-h-screen w-full bg-gray-50/50">
+      <GuestBanner />
       {/* --- DESKTOP SIDEBAR (Static Position) --- */}
       <div className="hidden lg:block fixed left-0 top-0 h-full w-[280px] border-r bg-white z-20">
         <div className="grid h-full max-h-screen grid-rows-[auto_1fr_auto]">
@@ -141,7 +144,7 @@ export const DashboardLayout = ({
                 {roleBottomNavItems.map((item) => (
                     <NavLink key={item.label} {...item} />
                 ))}
-                 <a href="/login" onClick={() => localStorage.clear()} className="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-700 transition-all hover:bg-gray-100">
+                 <a href="/" onClick={() => { guestStore.clearAll(); localStorage.clear(); sessionStorage.clear(); }} className="flex items-center gap-3 rounded-lg px-3 py-2 text-gray-700 transition-all hover:bg-gray-100">
                     <LogOut className="h-4 w-4" />
                     Logout
                  </a>
@@ -210,7 +213,7 @@ export const DashboardLayout = ({
               <DropdownMenuItem>Settings</DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <a href="/login" onClick={() => localStorage.clear()}>Logout</a>
+                <a href="/" onClick={() => { guestStore.clearAll(); localStorage.clear(); sessionStorage.clear(); }}>Logout</a>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

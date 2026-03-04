@@ -110,6 +110,20 @@ export default function LoginPage() {
     }
   };
 
+  const handleGuestLogin = () => {
+    const role = selectedRole || "incharge";
+    const guestUser = {
+      _id: "guest_user",
+      email: "guest@lims.demo",
+      role,
+      designation: role === "incharge" ? "Lab InCharge" : "Lab Instructor",
+      isGuest: true,
+    };
+    localStorage.setItem("user", JSON.stringify(guestUser));
+    localStorage.setItem("userEmail", guestUser.email);
+    router.push(role === "incharge" ? "/incharge/dashboard" : "/instructor/dashboard");
+  };
+
   const handleRoleSelect = (role: string) => {
     setSelectedRole(role);
     setDesignation(role === "incharge" ? "Lab InCharge" : "Lab Instructor");
@@ -230,6 +244,27 @@ export default function LoginPage() {
                   : "Don't have an account? Sign up"}
               </button>
             </div>
+
+            <div className="relative my-2">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-2 text-gray-500">or</span>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleGuestLogin}
+              className="w-full border-amber-400 text-amber-700 hover:bg-amber-50"
+            >
+              Continue as Guest
+            </Button>
+            <p className="text-xs text-center text-gray-500">
+              Explore all features — no account needed. Changes won&apos;t be saved.
+            </p>
           </CardContent>
         </Card>
       </div>

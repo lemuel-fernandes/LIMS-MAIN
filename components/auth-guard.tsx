@@ -4,6 +4,7 @@ import type React from "react"
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { guestStore } from "@/lib/guest-store"
 
 interface User {
   email: string
@@ -61,7 +62,10 @@ export function useAuth() {
   }, [])
 
   const logout = () => {
+    guestStore.clearAll()
     localStorage.removeItem("user")
+    localStorage.removeItem("userEmail")
+    sessionStorage.clear()
     setUser(null)
     window.location.href = "/"
   }
